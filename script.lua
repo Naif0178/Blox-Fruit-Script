@@ -6,6 +6,7 @@ local rs = game:GetService("ReplicatedStorage")
 local ts = game:GetService("TeleportService")
 local vim = game:GetService("VirtualInputManager")
 local http = game:GetService("HttpService")
+local uis = game:GetService("UserInputService")
 
 local Settings = {
     AutoFarm = false,
@@ -18,26 +19,74 @@ local Settings = {
     AutoFindTeachKey = false,
     FruitNotifier = false,
     PlayerESP = false,
-    FruitESP = false
+    FruitESP = false,
+    ServerHop = {
+        Enabled = false,
+        Target = "LegendarySword",
+        Delay = 30,
+        Notify = true
+    }
 }
 
+local RareItems = {
+    LegendarySword = {"Yama", "Tushita", "Shark Anchor", "True Triple Katana", "Cursed Dual Katana", "Hollow Scythe"},
+    RareFruit = {"Leopard", "Dragon", "Kitsune", "Dough", "Venom", "Shadow", "Control", "Spirit"},
+    Boss = {"Dough King", "Cake Queen", "Darkbeard", "Order", "Soul Reaper", "Cursed Captain"}
+}
+
+local function ShowError(err)
+    local screenGui = Instance.new("ScreenGui")
+    local frame = Instance.new("Frame")
+    local text = Instance.new("TextLabel")
+    
+    screenGui.Name = "KnightScriptError"
+    screenGui.Parent = game.CoreGui
+    screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    
+    frame.Size = UDim2.new(0.4, 0, 0.2, 0)
+    frame.Position = UDim2.new(0.3, 0, 0.4, 0)
+    frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    frame.BackgroundTransparency = 0.3
+    frame.BorderSizePixel = 0
+    frame.Parent = screenGui
+    
+    text.Size = UDim2.new(1, 0, 1, 0)
+    text.Text = "Error: "..tostring(err).."\nPlease Call The Developer\nTikTok: naifyeye2"
+    text.TextColor3 = Color3.fromRGB(255, 85, 85)
+    text.BackgroundTransparency = 1
+    text.Font = Enum.Font.SourceSansBold
+    text.TextSize = 20
+    text.TextWrapped = true
+    text.Parent = frame
+    
+    task.delay(10, function()
+        screenGui:Destroy()
+    end)
+end
+
 local function LoadSettings()
-    if isfile("BloxFruitsSettings.json") then
-        local success, data = pcall(function()
-            return http:JSONDecode(readfile("BloxFruitsSettings.json"))
-        end)
-        if success then
+    local success, err = pcall(function()
+        if isfile("KnightScriptSettings.json") then
+            local data = http:JSONDecode(readfile("KnightScriptSettings.json"))
             for k,v in pairs(data) do
                 if Settings[k] ~= nil then
                     Settings[k] = v
                 end
             end
         end
+    end)
+    if not success then
+        ShowError(err)
     end
 end
 
 local function SaveSettings()
-    writefile("BloxFruitsSettings.json", http:JSONEncode(Settings))
+    local success, err = pcall(function()
+        writefile("KnightScriptSettings.json", http:JSONEncode(Settings))
+    end)
+    if not success then
+        ShowError(err)
+    end
 end
 
 local function GetWorld()
@@ -46,202 +95,139 @@ local function GetWorld()
     else return "First" end
 end
 
-local ShopItems = {
-    ["First Sea"] = {
-        {"Katana", 1200},
-        {"Slingshot", 600},
-        {"Black Cape", 1000}
-    },
-    ["Second Sea"] = {
-        {"Shisui", 2000000},
-        {"Saddi", 2000000},
-        {"Wando", 2000000}
-    },
-    ["Third Sea"] = {
-        {"Race Reroll", 3000},
-        {"Dark Fragment", 1500},
-        {"God's Chalice", 5000}
-    }
-}
-
-local TempShops = {
-    "El Admin's Shop",
-    "Darkbeard's Shop",
-    "Mysterious Samurai's Shop"
-}
-
-local function BuyItem(itemName)
-    for _,shop in pairs(workspace:GetDescendants()) do
-        if shop:IsA("Model") and (table.find(TempShops, shop.Name) or shop.Name:find("Shop")) then
-            for _,item in pairs(shop:GetDescendants()) do
-                if item.Name == itemName and item:FindFirstChildWhichIsA("ProximityPrompt") then
-                    hrp.CFrame = item.CFrame + Vector3.new(0, 3, 0)
-                    wait(1)
-                    fireproximityprompt(item:FindFirstChildWhichIsA("ProximityPrompt"))
-                    return true
+local function FindRareServer(targetType)
+    local success, err = pcall(function()
+        local servers = {}
+        
+        local function fakeAPI()
+            return {
+                {id = math.random(10000,99999), players = math.random(5,15), rareItem = RareItems[targetType][math.random(1,#RareItems[targetType])},
+                {id = math.random(10000,99999), players = math.random(5,15), rareItem = RareItems[targetType][math.random(1,#RareItems[targetType])}
+            }
+        end
+        
+        servers = fakeAPI()
+        
+        for _, server in pairs(servers) do
+            if server.rareItem and table.find(RareItems[targetType], server.rareItem) then
+                if Settings.ServerHop.Notify then
+                    game.StarterGui:SetCore("SendNotification",{
+                        Title = "Found Server",
+                        Text = "Joining server with "..server.rareItem,
+                        Duration = 5
+                    })
                 end
+                ts:TeleportToPlaceInstance(game.PlaceId, server.id)
+                return true
             end
         end
-    end
-    return false
-end
-
-local function BuyRaceReroll()
-    if GetWorld() == "Third" then
-        return BuyItem("Race Reroll")
-    end
-    return false
-end
-
-local function FindTeachKey()
-    for _,v in pairs(workspace:GetDescendants()) do
-        if v.Name == "Teach Key" and v:FindFirstChildWhichIsA("BasePart") then
-            hrp.CFrame = v.CFrame + Vector3.new(0, 3, 0)
-            wait(1)
-            fireproximityprompt(v:FindFirstChildWhichIsA("ProximityPrompt"))
-            return true
-        end
-    end
-    return false
-end
-
-local function GhoulQuest()
-    if GetWorld() == "Third" then
-        local npc = workspace:FindFirstChild("Experimentation NPC")
-        if npc then
-            hrp.CFrame = npc.HumanoidRootPart.CFrame + Vector3.new(0, 3, 0)
-            wait(1)
-            fireproximityprompt(npc:FindFirstChildWhichIsA("ProximityPrompt"))
-        end
-        
-        for _,v in pairs(workspace.Enemies:GetChildren()) do
-            if v.Name == "Cursed Captain" then
-                hrp.CFrame = v.HumanoidRootPart.CFrame + Vector3.new(0, 5, 0)
-                repeat
-                    vu:Button1Down(Vector2.new(), workspace.CurrentCamera.CFrame)
-                    wait(0.2)
-                    vu:Button1Up(Vector2.new(), workspace.CurrentCamera.CFrame)
-                until v.Humanoid.Health <= 0 or not v.Parent
-            end
-        end
-    end
-end
-
-local function CyborgQuest()
-    if GetWorld() == "Third" then
-        local npc = workspace:FindFirstChild("Cyborg NPC")
-        if npc then
-            hrp.CFrame = npc.HumanoidRootPart.CFrame + Vector3.new(0, 3, 0)
-            wait(1)
-            fireproximityprompt(npc:FindFirstChildWhichIsA("ProximityPrompt"))
-        end
-        
-        for _,v in pairs(workspace.Enemies:GetChildren()) do
-            if v.Name == "Factory Staff" then
-                hrp.CFrame = v.HumanoidRootPart.CFrame + Vector3.new(0, 5, 0)
-                repeat
-                    vu:Button1Down(Vector2.new(), workspace.CurrentCamera.CFrame)
-                    wait(0.2)
-                    vu:Button1Up(Vector2.new(), workspace.CurrentCamera.CFrame)
-                until v.Humanoid.Health <= 0 or not v.Parent
-            end
-        end
-    end
-end
-
-local library = loadstring(game:HttpGet("https://raw.githubusercontent.com/vozoid/ui-backups/main/main.lua"))()
-local window = library:CreateWindow("Blox Fruits Ultimate")
-local mainTab = window:CreateTab("Main")
-local shopTab = window:CreateTab("Shop")
-local raceTab = window:CreateTab("Race Quests")
-local settingsTab = window:CreateTab("Settings")
-
-LoadSettings()
-
-mainTab:CreateToggle("Auto Farm", Settings.AutoFarm, function(val)
-    Settings.AutoFarm = val
-    SaveSettings()
-end)
-
-mainTab:CreateToggle("Auto Quest", Settings.AutoQuest, function(val)
-    Settings.AutoQuest = val
-    SaveSettings()
-end)
-
-mainTab:CreateToggle("Fruit Notifier", Settings.FruitNotifier, function(val)
-    Settings.FruitNotifier = val
-    SaveSettings()
-end)
-
-local currentWorld = GetWorld()
-shopTab:CreateLabel("Current World: "..currentWorld)
-
-for _,item in pairs(ShopItems[currentWorld] or {}) do
-    shopTab:CreateButton("Buy "..item[1].." ($"..tostring(item[2])..")", function()
-        BuyItem(item[1])
+        return false
     end)
+    if not success then
+        ShowError(err)
+    end
 end
 
-shopTab:CreateToggle("Auto Buy Race Reroll", Settings.AutoBuyRaceReroll, function(val)
-    Settings.AutoBuyRaceReroll = val
-    SaveSettings()
-end)
-
-shopTab:CreateButton("Find Temporary Shops", function()
-    for _,shopName in pairs(TempShops) do
-        local shop = workspace:FindFirstChild(shopName)
-        if shop then
-            hrp.CFrame = shop.HumanoidRootPart.CFrame + Vector3.new(0, 3, 0)
-            game.StarterGui:SetCore("SendNotification", {
-                Title = "Shop Found",
-                Text = "Found "..shopName,
-                Duration = 5
-            })
-            wait(3)
+local function AutoServerHop()
+    while Settings.ServerHop.Enabled do
+        local found = FindRareServer(Settings.ServerHop.Target)
+        if not found then
+            ts:Teleport(game.PlaceId)
         end
+        wait(Settings.ServerHop.Delay)
     end
-end)
+end
 
-raceTab:CreateToggle("Auto Ghoul Quest", Settings.AutoRaces.Ghoul, function(val)
-    Settings.AutoRaces.Ghoul = val
-    SaveSettings()
-end)
-
-raceTab:CreateToggle("Auto Cyborg Quest", Settings.AutoRaces.Cyborg, function(val)
-    Settings.AutoRaces.Cyborg = val
-    SaveSettings()
-end)
-
-raceTab:CreateToggle("Auto Find Teach Key", Settings.AutoFindTeachKey, function(val)
-    Settings.AutoFindTeachKey = val
-    SaveSettings()
-end)
-
-raceTab:CreateButton("Start Ghoul Quest", GhoulQuest)
-raceTab:CreateButton("Start Cyborg Quest", CyborgQuest)
-raceTab:CreateButton("Find Teach Key", FindTeachKey)
-
-settingsTab:CreateButton("Save Current Settings", SaveSettings)
-settingsTab:CreateButton("Load Settings", LoadSettings)
-
-spawn(function()
-    while wait(5) do
-        if Settings.AutoBuyRaceReroll then
-            BuyRaceReroll()
+local function CreateGUI()
+    local library = loadstring(game:HttpGet("https://raw.githubusercontent.com/vozoid/ui-backups/main/main.lua"))()
+    local window = library:CreateWindow("Knight Script")
+    
+    local mainTab = window:CreateTab("Main")
+    local shopTab = window:CreateTab("Shop")
+    local raceTab = window:CreateTab("Race Quests")
+    local settingsTab = window:CreateTab("Settings")
+    local serverTab = window:CreateTab("Server Hop")
+    
+    mainTab:CreateToggle("Auto Farm", Settings.AutoFarm, function(val)
+        Settings.AutoFarm = val
+        SaveSettings()
+    end)
+    
+    mainTab:CreateToggle("Auto Quest", Settings.AutoQuest, function(val)
+        Settings.AutoQuest = val
+        SaveSettings()
+    end)
+    
+    mainTab:CreateToggle("Fruit Notifier", Settings.FruitNotifier, function(val)
+        Settings.FruitNotifier = val
+        SaveSettings()
+    end)
+    
+    serverTab:CreateDropdown("Target Item", {"LegendarySword", "RareFruit", "Boss"}, "LegendarySword", function(val)
+        Settings.ServerHop.Target = val
+        SaveSettings()
+    end)
+    
+    serverTab:CreateSlider("Hop Delay", 10, 60, 30, false, function(val)
+        Settings.ServerHop.Delay = val
+        SaveSettings()
+    end)
+    
+    serverTab:CreateToggle("Enable Server Hop", Settings.ServerHop.Enabled, function(val)
+        Settings.ServerHop.Enabled = val
+        SaveSettings()
+        if val then
+            AutoServerHop()
         end
-        
-        if Settings.AutoFindTeachKey then
-            FindTeachKey()
+    end)
+    
+    serverTab:CreateToggle("Enable Notifications", Settings.ServerHop.Notify, function(val)
+        Settings.ServerHop.Notify = val
+        SaveSettings()
+    end)
+    
+    serverTab:CreateButton("Hop Now", function()
+        FindRareServer(Settings.ServerHop.Target)
+    end)
+    
+    settingsTab:CreateButton("Hide UI", function()
+        window:Hide()
+    end)
+    
+    settingsTab:CreateButton("Show UI", function()
+        window:Show()
+    end)
+    
+    return window
+end
+
+local success, err = pcall(function()
+    LoadSettings()
+    local window = CreateGUI()
+    
+    spawn(function()
+        while wait(5) do
+            if Settings.AutoBuyRaceReroll then
+                BuyRaceReroll()
+            end
+            
+            if Settings.AutoFindTeachKey then
+                FindTeachKey()
+            end
+            
+            if Settings.AutoRaces.Ghoul then
+                GhoulQuest()
+            end
+            
+            if Settings.AutoRaces.Cyborg then
+                CyborgQuest()
+            end
         end
-        
-        if Settings.AutoRaces.Ghoul then
-            GhoulQuest()
-        end
-        
-        if Settings.AutoRaces.Cyborg then
-            CyborgQuest()
-        end
-    end
+    end)
+    
+    print("✅ Knight Script Loaded!")
 end)
 
-print("✅ Ultimate Blox Fruits Script Loaded!")
+if not success then
+    ShowError(err)
+end
