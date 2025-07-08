@@ -58,10 +58,10 @@ local function MovementSystem()
     Humanoid.JumpPower = 150
 
     if Settings.Movement.TeleportToCursor then
+        local mouse = Player:GetMouse()
         game:GetService("UserInputService").InputBegan:Connect(function(input)
             if input.UserInputType == Enum.UserInputType.MouseButton1 then
-                local ray = workspace:Raycast(Player:GetMouse().Hit.Position, Vector3.new(0, -1, 0))
-                if ray then HumanoidRootPart.CFrame = CFrame.new(ray.Position + Vector3.new(0, 5, 0)) end
+                HumanoidRootPart.CFrame = CFrame.new(mouse.Hit.Position + Vector3.new(0,5,0))
             end
         end)
     end
@@ -104,7 +104,10 @@ MovementTab:CreateSlider("Speed", {
     Default = 500,
     Min = 16,
     Max = 1000,
-    Callback = function(Value) Settings.Movement.Speed = Value end
+    Callback = function(Value)
+        Settings.Movement.Speed = Value
+        Humanoid.WalkSpeed = Value
+    end
 })
 
 local ShopTab = Window:CreateTab("Shop")
